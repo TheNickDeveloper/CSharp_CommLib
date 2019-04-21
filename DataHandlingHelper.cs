@@ -206,6 +206,39 @@ namespace VstoHelperTest.Helper
 
             return result;
         }
+
+        public static List<T> BindList<T>(DataTable dt)
+        {
+            var listTarget = new List<T>();
+
+            foreach(DataRow row in dt.Rows)
+            {
+                foreach (var property in typeof(T).GetProperties())
+                {
+                    var attribute = property.GetCustomAttribute<FieldAttribute>();
+
+                    if (attribute != null)
+                    {
+                        if(dt.Columns.contains(attribute.Name))
+                        {
+                            property.SetValue(ob,row[dt.Columns[attribute.Name]]);
+                        }
+                    }
+                    listTarget.Add(ob);
+                }
+            }
+            return listTarget;
+        }
+    }
+
+    public class FeildAttribute:Attribute
+    {
+        public string Name { get; set; }
+
+        public FeildAttribute (string name)
+	    {
+            Name = name;
+	    }
     }
 }
 
