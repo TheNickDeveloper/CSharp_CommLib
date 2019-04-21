@@ -1,0 +1,12 @@
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\bin\Debug\VstoHelperTest.dll
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\bin\Debug\VstoHelperTest.pdb
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\bin\Debug\VstoHelperTest.dll.manifest
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\bin\Debug\VstoHelperTest.vsto
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\bin\Debug\VstoHelperTest.xlsx
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\bin\Debug\Microsoft.Office.Tools.Common.v4.0.Utilities.dll
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\bin\Debug\Microsoft.Office.Tools.Excel.v4.0.Utilities.dll
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\obj\Debug\VstoHelperTest.Properties.Resources.resources
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\obj\Debug\VstoHelperTest.csproj.GenerateResource.Cache
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\obj\Debug\VstoHelperTest.csproj.CoreCompileInputs.cache
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\obj\Debug\VstoHelperTest.dll
+C:\Users\32355\Documents\GitHub\VstoHelpTest\VstoHelperTest\obj\Debug\VstoHelperTest.pdb
