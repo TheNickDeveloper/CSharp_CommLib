@@ -1,56 +1,119 @@
-﻿using Excel = Microsoft.Office.Interop.Excel;
+﻿using System;
+using System.Runtime.InteropServices;
+using Excel = Microsoft.Office.Interop.Excel;
 
-namespace VstoHelperTest.Helper
+namespace RADHelper
 {
-    public static class ExcelHelper
+    public class ExcelHelper
     {
-        //**********************************************
-        //worksheet handling
-        //**********************************************
-
-        public static int GetUsedRow(Excel.Worksheet wsTarget, int targetColumnPosition)
+        public int GetUsedRow(Excel.Worksheet wsTarget, int targetCol)
         {
-            return ((Excel.Range)wsTarget.Cells[wsTarget.Rows.Count, targetColumnPosition]).End[Excel.XlDirection.xlUp].Row;
+            return ((Excel.Range)wsTarget.Cells[wsTarget.Rows.Count, targetCol])
+                .End[Excel.XlDirection.xlUp].Row;
         }
 
-        public static int GetUsedCol(Excel.Worksheet wsTarget, int targetRowPosition)
+        public int GetUsedCol(Excel.Worksheet wsTarget, int targetRow)
         {
-            return ((Excel.Range)wsTarget.Cells[targetRowPosition, wsTarget.Columns.Count]).End[Excel.XlDirection.xlToLeft].Column;
+            return ((Excel.Range)wsTarget.Cells[wsTarget.Columns.Count, targetRow])
+                .End[Excel.XlDirection.xlToLeft].Column;
         }
 
-        public static void CleanContents(Excel.Worksheet wsTarget)
+        public void CleanContents(Excel.Worksheet wsTarget)
         {
             wsTarget.UsedRange.Clear();
         }
 
-        public static void CleanContents(Excel.Worksheet wsTarget, int startRow, int startCol)
+        public void CleanContents(Excel.Worksheet wsTarget
+            , int startRow, int startCol)
         {
             var usedRow = GetUsedRow(wsTarget, startCol);
             var usedCol = GetUsedCol(wsTarget, startRow);
-            wsTarget.Range[wsTarget.Cells[startRow, startCol], wsTarget.Cells[usedRow, usedCol]].Clear();
+
+            ((Excel.Range)(wsTarget.Range[wsTarget.Cells[startRow, startCol]
+                , wsTarget.Cells[startRow, startCol]])).Clear();
         }
 
-        public static void PasteArrayToSheet(dynamic arrContainer, Excel.Range rngTarget)
+        public static void PasteArrayDataToSheet(dynamic arrContainer
+            , Excel.Range rngTarget)
         {
-            rngTarget.Resize[arrContainer.GetLength(0), arrContainer.GetLength(1)].Value = arrContainer;
+            rngTarget.Resize[arrContainer.GetLength(0)
+                , arrContainer.GetLength(1)].Value = arrContainer;
         }
 
-        public static void SaveAsFileFromSelectWorksheet(Excel.Worksheet wsTarget, string pathDetinationFolder, string nameTargetWorksheet)
+        public void ExportWorksheetAsExcel(Excel.Worksheet wsTarget, string targetFolderPath
+            , string targetWsName, string docProperty = "INTERNAL")
         {
-            var app = Globals.ThisWorkbook.Application;
+            var app = (Excel.Application)Marshal.GetActiveObject("Excel.Application");
+
+            //var app = Globals.ThisWorkbook.Application;
             app.DisplayAlerts = false;
-            wsTarget.Visible = Excel.XlSheetVisibility.xlSheetVisible;
             wsTarget.Copy();
-            app.Visible = true;
-            var currentWorkbook = app.ActiveWorkbook;
-            currentWorkbook.BuiltinDocumentProperties.Value = "INTERNAL";
-            currentWorkbook.SaveAs(pathDetinationFolder + "\\" + nameTargetWorksheet + ".xlsx");
+
+            var currentWb = app.ActiveWorkbook;
+            currentWb.BuiltinDocumentProperties("Comments").Value = "INTERNAL";
+            currentWb.SaveAs($"{targetFolderPath}\\{targetWsName}.xlsx");
+            currentWb.Close();
             app.DisplayAlerts = true;
         }
 
-        public static void ConvertToExcelRealValue(Excel.Range selectRange)
+        public void ExportWorksheetAsPDF(Excel.Worksheet wsTarget, string targetFolderPath
+            , string outputFileName)
         {
-            selectRange.Value = selectRange.Value;
+            //var app = Globals.ThisWorkbook.Application;
+            var app = (Excel.Application)Marshal.GetActiveObject("Excel.Application");
+
+            app.DisplayAlerts = false;
+            wsTarget.Copy();
+
+            var currentWb = app.ActiveWorkbook;
+            currentWb.ExportAsFixedFormat(Excel.XlFixedFormatType.xlTypePDF
+                ,$"{targetFolderPath}\\{outputFileName}");
+            currentWb.Close();
+            app.DisplayAlerts = true;
         }
+
+        public void ConvertToOriginalType(Excel.Range rngSelect)
+        {
+            rngSelect.Value = rngSelect.Value;
+        }
+
+        public Array ConvertRangeToObjectArray(Excel.Worksheet wsTarget
+            , int startRow, int startCol)
+        {
+            var usedRow = GetUsedRow(wsTarget, startCol);
+            var usedCol = GetUsedCol(wsTarget, startRow);
+            var arrTemp = wsTarget.Range[wsTarget.Cells[startRow, startCol]
+                , wsTarget.Cells[usedRow, usedCol]].Value;
+
+            object[,] arrResult = new object[usedRow, usedCol];
+
+            Array.Copy(arrTemp, 1, arrResult, 0, usedRow * usedCol);
+            return arrResult;
+        }
+
+        public string[,] ConvertRangeToStringArray(Excel.Worksheet wsTarget
+            , int startRow, int startCol)
+        {
+            var usedRow = GetUsedRow(wsTarget, startCol);
+            var usedCol = GetUsedCol(wsTarget, startRow);
+            var arrTemp = wsTarget.Range[wsTarget.Cells[startRow, startCol]
+                , wsTarget.Cells[usedRow, usedCol]].Value;
+
+            var dataHandler = new DataHandlingHelper();
+
+            return dataHandler.ConverArrayToStringArray(arrTemp);
+        }
+
+        public string[,] ConvertRangeToStringArray(Excel.Worksheet wsTarget
+            , int startRow, int startCol, int endRow, int endCol)
+        {
+            var arrTemp = wsTarget.Range[wsTarget.Cells[startRow, startCol]
+                , wsTarget.Cells[endRow, endCol]].Value;
+
+            var dataHandler = new DataHandlingHelper();
+
+            return dataHandler.ConverArrayToStringArray(arrTemp);
+        }
+
     }
 }

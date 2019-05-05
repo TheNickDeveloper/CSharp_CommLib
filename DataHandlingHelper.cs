@@ -1,244 +1,248 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.OleDb;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using DataTable = System.Data.DataTable;
 
-namespace VstoHelperTest.Helper
+namespace SimpleRecon
 {
-    public static class DataHandlingHelper
+    public class DataHandlingHelper
     {
-        public static OleDbConnection As400Connection { get; set; }
-        public static OleDbConnection ExcelConnection { get; set; }
-        public static OleDbConnection AccessConnection { get; set; }
-        public static OleDbConnection SqlServerConnection { get; set; }
+        //*************************
+        // OLEDB connection
+        //*************************
 
-        //---------------------------------------
-        // OleDb Connection 
-        //---------------------------------------
-
-        public static void SetExcelConnection(string filePath, string sqlConnectionQuery)
+        public OleDbConnection SetExcelConnection(string filePath)
         {
-            ExcelConnection = new OleDbConnection("Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + filePath + ";" 
-                + "Extended Properties=\"Excel 12.0;HDR=yes;IMEX=1;\"");
-
-            ExcelConnection?.Open();
+            var connStr = $"Provider=Microsoft.ACE.OLEDB.12.0; Data Source={filePath}; Extended Properties=Excel 12.0;";
+            return GetConnection(new OleDbConnection(connStr));
         }
 
-        public static void SetAs400Connection(string dbName, string userName = "", string password = "")
+        public OleDbConnection SetAs400Connection(string hostName, string userName = "", string password = "")
         {
-            var connectionString = $"Provider - IBMDA400; Data Source = {dbName}; Persist Security Info = True;";
+            var connStr = $"Provider = IBMDA400; Data Source = {hostName}; Persist Security Info = True;";
+
             if (userName.Length > 0 || password.Length > 0)
-                connectionString = connectionString + $"User ID = {userName}; Password = {password};";
+                connStr = connStr + $"User ID = {userName}; password = {password};";
 
-            As400Connection = new OleDbConnection(connectionString);
-            As400Connection?.Open();
+            return GetConnection(new OleDbConnection(connStr));
         }
 
-        public static void SetAccessConnection(string filePath, string password = "")
+        public OleDbConnection SetAccessConnection(string filePath, string password = "")
         {
-            var connectionString = $"Provider = Microsoft.ACE.OLEDB.12.0; Data Source = {filePath};";
+            var connStr = $"Provider=Microsoft.ACE.OLEDB.12.0; Data Source={filePath};";
+
             if (password.Length > 0)
-                connectionString = connectionString + $"Persist Security Info=True; Jet OLEDB:Database Password = {password};";
+                connStr = connStr + $"Persist Security Info = True; Jet OLEDB:Database Password ={password}; ";
             else
-                connectionString = connectionString + "Persist Security Info = False;";
+                connStr = connStr + $"Persist Security Info = False;";
 
-            AccessConnection = new OleDbConnection(connectionString);
+            return GetConnection(new OleDbConnection(connStr));
         }
 
-        public static void SetSqlServerConnection(string serverName, string dbName, string userName = "", string password = "")
+        public OleDbConnection SetSqlServerConnection(string serverName, string dbName, string portname = "1433"
+            , string userName = "", string password = "")
         {
-            var connectionString = $"Provider = SQLOLEDB; Data Source = {serverName}; Initial Catalog = {dbName};";
+            var connStr = $"Provider = SQLOLEDB; Data Source = {serverName},{portname};Intial Catalog = {dbName};";
+
             if (userName.Length > 0)
-                connectionString = connectionString + $"User ID ={userName}; Password = {password};";
+                connStr = connStr + $"User ID = {userName}; Password = {password};";
 
-            SqlServerConnection = new OleDbConnection(connectionString);
+            return GetConnection(new OleDbConnection(connStr));
         }
 
-        //---------------------------------------
-        // OleDb Adapter 
-        //---------------------------------------
-
-        public static OleDbDataAdapter SetAdapter(string sqlConnectionQuery,OleDbConnection connection)
+        private OleDbConnection GetConnection(OleDbConnection connTarget)
         {
-            return connection.State == ConnectionState.Open
-                ? new OleDbDataAdapter(sqlConnectionQuery, connection)
-                : null;
+            connTarget.Open();
+            return connTarget.State == ConnectionState.Open
+                ? connTarget : null;
         }
-        
-        public static DataTable ConvertAdapterADataTable(OleDbDataAdapter adapter)
+
+        //*************************
+        // Query conversion
+        //*************************
+
+        public DataTable ConvertQueryToDataTable(string sqlQuery, OleDbConnection conn, string dtName = "DataTable")
         {
+            var adapter = new OleDbDataAdapter(sqlQuery, conn);
             var dataSet = new DataSet();
-            adapter.Fill(dataSet, "DataTable");
-            return dataSet.Tables["DataTable"];
+            adapter.Fill(dataSet, dtName);
+
+            return dataSet.Tables[dtName];
         }
 
-        public static ArrayList ConvertAdapterAsArrayList(OleDbDataAdapter adapter)
+        public List<DataRow> ConvertQueryToStringList(string sqlQuery, OleDbConnection conn, string dtName = "DataTable")
         {
-            var dataSet = new DataSet();
-            adapter.Fill(dataSet, "ArrayList");
-            var targetDataRow = dataSet.Tables[0].AsEnumerable().ToArray();
+            var dtTarget = ConvertQueryToDataTable(sqlQuery, conn);
 
-            return new ArrayList(targetDataRow);
+            return (from a in dtTarget.AsEnumerable() select a).ToList();
         }
 
-        //---------------------------------------
-        // Other data file import 
-        //---------------------------------------
+        //*************************
+        // Query conversion
+        //*************************
 
-        public static DataTable ImportCsvFilesAsDatatable(string pathFile, bool isIncludeHeader = true)
+        public DataTable ImportCsvAsDataTable(string filePath, bool isIncludeHeader = true)
         {
-            var arrLines = File.ReadAllLines(pathFile);
-            var headerLables = arrLines[0].Split(',');
-            var datatableContainer = new DataTable();
+            var arrLines = File.ReadAllLines(filePath);
+            var headerLabels = arrLines[0].Split(',');
+            var dtTemp = new DataTable();
             var startRow = 0;
 
+            //header
             if (isIncludeHeader)
             {
-                foreach (var headerContents in headerLables)
-                    datatableContainer.Columns.Add(new DataColumn(headerContents));
+                foreach (var headerWord in headerLabels)
+                    dtTemp.Columns.Add(new DataColumn(headerWord));
 
                 startRow = 1;
             }
             else
             {
-                for (var i = 0; i < headerLables.Length; i++)
+                for (int i = 0; i < headerLabels.Length; i++)
                 {
-                    datatableContainer.Columns.Add(new DataColumn("f" + (i + 1).ToString()));
-                    headerLables[i] = "f" + (i + 1).ToString();
+                    dtTemp.Columns.Add(new DataColumn("f" + (i + 1).ToString()));
+                    headerLabels[i] = "f" + (i + 1).ToString();
                 }
             }
 
-            for(var row = startRow; row < arrLines.Length; row++)
+            //body contents
+            for (int row = startRow; row < arrLines.Length; row++)
             {
                 var dataWords = arrLines[row].Split(',');
-                var dataRow = datatableContainer.NewRow();
+                var dataRow = dtTemp.NewRow();
                 var columnIndex = 0;
 
-                foreach (var headerWord in headerLables)
-                    dataRow[headerWord] = dataWords[columnIndex++];
+                foreach (var col in headerLabels)
+                    dataRow[col] = dataWords[columnIndex++];
 
-                datatableContainer.Rows.Add(dataRow);
+                dtTemp.Rows.Add(dataRow);
             }
-            return datatableContainer;
+
+            return dtTemp;
         }
 
-        public static DataTable ConvertArrayToDataTable(Array arrTarget, bool isIncludeHeader = true)
+        public DataTable ConverArrayToDataTable(Array arrTarget, bool isIncludeHeader = true)
         {
-            var resultDataTable = new DataTable();
+            var dtResult = new DataTable();
             var startRow = 0;
             var headerString = "";
 
+            //header
             if (isIncludeHeader)
             {
-                for (var i = 0; i < arrTarget.GetLength(1); i++)
+                for (int i = 0; i < arrTarget.GetLength(1); i++)
                 {
-                    resultDataTable.Columns.Add(Convert.ToString(arrTarget.GetValue(0, 1)), typeof(string));
-                    headerString = headerString + Convert.ToString(arrTarget.GetValue(0, 1)) + ",";
+                    dtResult.Columns.Add(Convert.ToString(arrTarget.GetValue(0, i)), typeof(string));
+                    headerString = headerString + Convert.ToString(arrTarget.GetValue(0, i)) + ",";
                 }
                 startRow = 1;
             }
             else
             {
-                for (var i = 0; i < arrTarget.GetLength(1); i++)
+                for (int i = 0; i < arrTarget.GetLength(1); i++)
                 {
-                    resultDataTable.Columns.Add($"f{(i + 1)}");
-                    headerString = headerString + "f" + (i + 1) + ",";
+                    dtResult.Columns.Add("f" + (i + 1).ToString());
+                    headerString = headerString + "f" + (i + 1).ToString();
                 }
             }
 
-            headerString = headerString.Substring(0, headerString.Length - 1);
-            var headerLables = headerString.Split(',');
+            //body contents
+            headerString = headerString.Substring(0, headerString.Count() - 1);
+            var arrHeader = headerString.Split(',');
 
-            for (var i = startRow; i < arrTarget.GetLength(0); i++)
+            for (int row = startRow; row < arrTarget.GetLength(0); row++)
             {
-                var dataRow = resultDataTable.NewRow();
+                var dataRow = dtResult.NewRow();
                 var columnIndex = 0;
 
-                foreach (var headerWord in headerLables)
-                    dataRow[headerWord] = arrTarget.GetValue(i, columnIndex++);
+                foreach (var col in arrHeader)
+                    dataRow[col] = arrTarget.GetValue(row, columnIndex++);
 
-                resultDataTable.Rows.Add(dataRow);
+                dtResult.Rows.Add(dataRow);
             }
-            return resultDataTable;
+
+            return dtResult;
         }
 
-        public static string[] ImportTxtDataAsStringArray(string pathFile)
+        public string[] ImportTextFileAsStringArray(string filePath)
         {
-            return File.ReadAllLines(pathFile);
+            return File.ReadAllLines(filePath);
         }
 
-        //---------------------------------------
-        //Data types converting
-        //---------------------------------------
-
-        public static string[,] ConvertDataTableToArray(DataTable datatableTarget, bool isIncludeHeader = true)
+        public string[,] ConvertDatatableToStringArray(DataTable dtTarget, bool isIncludeHeader = true)
         {
-            var result = new string[datatableTarget.Rows.Count + 1, datatableTarget.Columns.Count];
+            var arrResult = new string[dtTarget.Rows.Count + 1, dtTarget.Columns.Count];
             var startRow = 0;
 
             if (isIncludeHeader)
             {
-                for (var i = 0; i < datatableTarget.Columns.Count; i++)
-                    result[0, i] = datatableTarget.Columns[i].ColumnName;
+                //title name
+                for (var i = 0; i < dtTarget.Columns.Count; i++)
+                    arrResult[0, i] = dtTarget.Columns[i].ColumnName;
 
                 startRow = 1;
             }
 
-            for (var i = 0; i < datatableTarget.Rows.Count; i++)
-                    for (var j = 0; j < datatableTarget.Columns.Count; j++)
-                        result[i + startRow, j] = datatableTarget.Rows[i][j].ToString();
-            
-            return result;
+            //table contents
+            for (var i = 0; i < dtTarget.Rows.Count; i++)
+                for (var j = 0; j < dtTarget.Columns.Count; j++)
+                    arrResult[i + startRow, j] = dtTarget.Rows[i][j].ToString();
+
+            return arrResult;
         }
 
-        public static string[,] ConvertSystemArrayToStringArray(Array arrTarget)
+        public string[,] ConverArrayToStringArray(Array arrTarget)
         {
             var usedRow = arrTarget.GetLength(0);
             var usedCol = arrTarget.GetLength(1);
-            var result = new string[usedRow, usedCol];
+            var arrResult = new string[usedRow, usedCol];
 
-            for (var i = 0; i < usedCol; i++)
-                for (var j = 0; j < usedRow; j++)
-                    result[j, i] = Convert.ToString(arrTarget.GetValue(j + 1, i + 1));
+            for (int i = 0; i < usedCol; i++)
+                for (int j = 0; j < usedRow; j++)
+                    arrResult[j, i] = Convert.ToString(arrTarget.GetValue(j + 1, i + 1));
 
-            return result;
+            return arrResult;
         }
 
-        public static List<T> BindList<T>(DataTable dt)
+        public List<T> BindList<T>(DataTable dt)
         {
-            var listTarget = new List<T>();
 
-            foreach(DataRow row in dt.Rows)
+            var listTarget = new List<T>();
+            var arrPropinfo = typeof(T).GetProperties();
+
+            foreach (DataRow row in dt.Rows)
             {
+                var ob = Activator.CreateInstance<T>();
+
                 foreach (var property in typeof(T).GetProperties())
                 {
-                    var attribute = property.GetCustomAttribute<FieldAttribute>();
+                    var attribute = property.GetCustomAttribute<FeildAttribute>();
 
                     if (attribute != null)
-                    {
-                        if(dt.Columns.contains(attribute.Name))
-                        {
-                            property.SetValue(ob,row[dt.Columns[attribute.Name]]);
-                        }
-                    }
+                        if (dt.Columns.Contains(attribute.Name))
+                            property.SetValue(ob, row[dt.Columns[attribute.Name]]);
+
                     listTarget.Add(ob);
                 }
+                listTarget.Add(ob);
             }
             return listTarget;
         }
     }
 
-    public class FeildAttribute:Attribute
+    public class FeildAttribute : Attribute
     {
         public string Name { get; set; }
 
-        public FeildAttribute (string name)
-	    {
+        public FeildAttribute(string name)
+        {
             Name = name;
-	    }
+        }
     }
 }
 
