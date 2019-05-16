@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.OleDb;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using DataTable = System.Data.DataTable;
 
 namespace SimpleRecon
 {
@@ -24,33 +22,27 @@ namespace SimpleRecon
 
         public OleDbConnection SetAs400Connection(string hostName, string userName = "", string password = "")
         {
-            var connStr = $"Provider = IBMDA400; Data Source = {hostName}; Persist Security Info = True;";
-
-            if (userName.Length > 0 || password.Length > 0)
-                connStr = connStr + $"User ID = {userName}; password = {password};";
+            var connStr = (userName.Length > 0 || password.Length > 0)
+                ? $"Provider = IBMDA400; Data Source = {hostName}; Persist Security Info = True; User ID = {userName}; password = {password};"
+                : $"Provider = IBMDA400; Data Source = {hostName}; Persist Security Info = True;";
 
             return GetConnection(new OleDbConnection(connStr));
         }
 
         public OleDbConnection SetAccessConnection(string filePath, string password = "")
         {
-            var connStr = $"Provider=Microsoft.ACE.OLEDB.12.0; Data Source={filePath};";
-
-            if (password.Length > 0)
-                connStr = connStr + $"Persist Security Info = True; Jet OLEDB:Database Password ={password}; ";
-            else
-                connStr = connStr + $"Persist Security Info = False;";
+            var connStr = password.Length > 0
+                ? $"Provider=Microsoft.ACE.OLEDB.12.0; Data Source={filePath}; Persist Security Info = True; Jet OLEDB:Database Password ={password};"
+                : $"Provider=Microsoft.ACE.OLEDB.12.0; Data Source={filePath}; Persist Security Info = False;";
 
             return GetConnection(new OleDbConnection(connStr));
         }
 
-        public OleDbConnection SetSqlServerConnection(string serverName, string dbName, string portname = "1433"
-            , string userName = "", string password = "")
+        public OleDbConnection SetSqlServerConnection(string serverName, string dbName, string portname = "1433", string userName = "", string password = "")
         {
-            var connStr = $"Provider = SQLOLEDB; Data Source = {serverName},{portname};Intial Catalog = {dbName};";
-
-            if (userName.Length > 0)
-                connStr = connStr + $"User ID = {userName}; Password = {password};";
+            var connStr = userName.Length > 0
+                ? $"Provider = SQLOLEDB; Data Source = {serverName},{portname};Intial Catalog = {dbName}; User ID = {userName}; Password = {password};"
+                : $"Provider = SQLOLEDB; Data Source = {serverName},{portname};Intial Catalog = {dbName};";
 
             return GetConnection(new OleDbConnection(connStr));
         }
@@ -75,7 +67,7 @@ namespace SimpleRecon
             return dataSet.Tables[dtName];
         }
 
-        public List<DataRow> ConvertQueryToStringList(string sqlQuery, OleDbConnection conn, string dtName = "DataTable")
+        public List<DataRow> ConvertQueryToStringList(string sqlQuery, OleDbConnection conn)
         {
             var dtTarget = ConvertQueryToDataTable(sqlQuery, conn);
 
@@ -83,7 +75,7 @@ namespace SimpleRecon
         }
 
         //*************************
-        // Query conversion
+        // CSV conversion
         //*************************
 
         public DataTable ImportCsvAsDataTable(string filePath, bool isIncludeHeader = true)
@@ -126,7 +118,34 @@ namespace SimpleRecon
             return dtTemp;
         }
 
-        public DataTable ConverArrayToDataTable(Array arrTarget, bool isIncludeHeader = true)
+        public List<T> ImportCsvAsObjectList<T>(string filePath, bool isIncludeheader = false)
+        {
+            var arrLines = File.ReadAllLines(filePath);
+            var startRow = isIncludeheader ? 1 : 0;
+            var arrPorpInfo = typeof(T).GetProperties();
+            var targetList = new List<T>();
+
+            for (int row = startRow; row <= arrPorpInfo.Count(); row++)
+            {
+                var ob = Activator.CreateInstance<T>();
+                var words = arrLines[row].Split(',');
+                var i = 0;
+
+                foreach (var property in arrPorpInfo)
+                {
+                    property.SetValue(ob, words[i]);
+                    i++;
+                }
+                targetList.Add(ob);
+            }
+            return targetList;
+        }
+
+        //*************************
+        // Array conversion
+        //*************************
+
+        public DataTable ConvertArrayToDataTable(Array arrTarget, bool isIncludeHeader = true)
         {
             var dtResult = new DataTable();
             var startRow = 0;
@@ -169,11 +188,6 @@ namespace SimpleRecon
             return dtResult;
         }
 
-        public string[] ImportTextFileAsStringArray(string filePath)
-        {
-            return File.ReadAllLines(filePath);
-        }
-
         public string[,] ConvertDatatableToStringArray(DataTable dtTarget, bool isIncludeHeader = true)
         {
             var arrResult = new string[dtTarget.Rows.Count + 1, dtTarget.Columns.Count];
@@ -209,9 +223,8 @@ namespace SimpleRecon
             return arrResult;
         }
 
-        public List<T> BindList<T>(DataTable dt)
+        public List<T> ConvertDataTableToList<T>(DataTable dt)
         {
-
             var listTarget = new List<T>();
             var arrPropinfo = typeof(T).GetProperties();
 
@@ -219,7 +232,7 @@ namespace SimpleRecon
             {
                 var ob = Activator.CreateInstance<T>();
 
-                foreach (var property in typeof(T).GetProperties())
+                foreach (var property in arrPropinfo)
                 {
                     var attribute = property.GetCustomAttribute<FeildAttribute>();
 
@@ -232,6 +245,27 @@ namespace SimpleRecon
                 listTarget.Add(ob);
             }
             return listTarget;
+        }
+
+        public List<T> ConvertQueryToObjectList<T>(string query, OleDbConnection conn)
+        {
+            var cmd = new OleDbCommand(query, conn);
+            var reader = cmd.ExecuteReader(CommandBehavior.CloseConnection);
+
+            var arrPropInfo = typeof(T).GetProperties();
+            var targetList = new List<T>();
+
+            while (reader.Read())
+            {
+                var ob = Activator.CreateInstance<T>();
+
+                foreach (var property in arrPropInfo)
+                    if (reader?.GetOrdinal(property.Name) != null)
+                        property.SetValue(ob, reader.GetValue(reader.GetOrdinal(property.Name)));
+
+                targetList.Add(ob);
+            }
+            return targetList;
         }
     }
 
