@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 
-namespace SimpleRecon
+namespace BasicPractice
 {
     public class DataHandlingHelper
     {
@@ -121,24 +121,65 @@ namespace SimpleRecon
         public List<T> ImportCsvAsObjectList<T>(string filePath, bool isIncludeheader = false)
         {
             var arrLines = File.ReadAllLines(filePath);
-            var startRow = isIncludeheader ? 1 : 0;
-            var arrPorpInfo = typeof(T).GetProperties();
+            var map = new Dictionary<string, int>();
+            var startRow = 0;
+
+            if (isIncludeheader)
+            {
+                map = GetMappingTable(arrLines[0]);
+                startRow = 1;
+            }
+
             var targetList = new List<T>();
 
-            for (int row = startRow; row <= arrPorpInfo.Count(); row++)
+            for (int row = startRow; row < arrLines.Count(); row++)
             {
                 var ob = Activator.CreateInstance<T>();
                 var words = arrLines[row].Split(',');
-                var i = 0;
 
-                foreach (var property in arrPorpInfo)
-                {
-                    property.SetValue(ob, words[i]);
-                    i++;
-                }
+                if (!isIncludeheader)
+                    GetSettedObjWithoutTitle<T>(ref ob, words);
+                else
+                    GetSettedObj(ref ob, words, map);
+
                 targetList.Add(ob);
             }
             return targetList;
+        }
+
+        private void GetSettedObj<T>(ref T ob, string[] words, Dictionary<string, int> map)
+        {
+            var arrPorpInfo = typeof(T).GetProperties();
+
+            foreach (var property in arrPorpInfo)
+            {
+                property.SetValue(ob, words[map[property.Name]]);
+            }
+        }
+
+        private void GetSettedObjWithoutTitle<T>(ref T ob, string[] words)
+        {
+            var arrPorpInfo = typeof(T).GetProperties();
+            var i = 0;
+
+            foreach (var property in arrPorpInfo)
+            {
+                property.SetValue(ob, words[i]);
+                i++;
+            }
+        }
+
+        private Dictionary<string, int> GetMappingTable(string header)
+        {
+            var map = new Dictionary<string, int>();
+            var i = 0;
+
+            foreach (var col in header.Split(','))
+            {
+                map.Add(col, i);
+                i++;
+            }
+            return map;
         }
 
         //*************************
